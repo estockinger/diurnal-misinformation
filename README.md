@@ -2,7 +2,7 @@
 
 This workbook contains the code for the paper "Diurnal Patterns in the Spread of COVID-19 Misinformation on Twitter within Italy." A preprint is published as [http://arxiv.org/abs/2307.11575](http://arxiv.org/abs/2307.11575).
 
-To re-run the analysis, please request access to the dataset by the 2nd author Riccardo Gallotti.
+The access to the data necessary for running thes analyses are restricted by Twitter ToC. Requests to perform a reproduction of this work have to be addressed to the 2nd author Riccardo Gallotti.
 
 
 The file ['code/Italy_clustering.ipynb'](code/Italy_clustering.ipynb) gives details and background on the procedure used to separate users into clusters based on their typical activity patterns. 
