@@ -5,10 +5,7 @@ This workbook contains the code for the paper "Early morning hour and evening us
 An aggregated and anonymized version of the dataset used within this analysis is provided in the folder 'data'. To preserve user anonymity, the latitudes and longitudes provided in the data files are mapped to the closest 2021 territorial units level 3 (NUTS3, provinces and metropolitan cities).
 
 
-Most logic is packaged in 'diurnal_misinformation'. Please install the package to execute the notebooks using the command 
-```
-python -m pip install -e diurnal_misinformation
-``` 
+Most logic is packaged in 'diurnal_misinformation'. Please install the package to execute the notebooks.
 
 The results data analysis and visualization are provided in the folder 'notebooks'.
 
