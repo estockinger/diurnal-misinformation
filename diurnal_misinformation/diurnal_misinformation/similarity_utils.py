@@ -123,7 +123,7 @@ def mean_distance_for_shifts(signal, shift_by, metrics, compare_to):
     return shift_by.apply(
         lambda x: pd.Series([
             mean_distance(signal, x, v, compare_to=compare_to)
-            for v in metrics.values()], index=metrics.keys())).T.style.highlight_min(props='font-weight: bold;', axis=0).format('{:.1e}')
+            for v in metrics.values()], index=metrics.keys())).T.style.highlight_min(props='font-weight: bold;', axis=0).format('{:.2e}')
 
 
 @dataclass

@@ -8,12 +8,12 @@ from scipy.signal import argrelextrema, fftconvolve
 from scipy.stats import mannwhitneyu
 import matplotlib.ticker as mticker
 from dataclasses import dataclass
+from diptest import diptest
 
 from .utils import smooth_looped, format_h_min, time_past_t, shift_rows_by
 from .enums import Columns, Clusters
 from .data_processor import DataProcessor
 from .path_utils import save_plot
-
 
 @dataclass
 class FourierSignalRecomposition:
@@ -127,9 +127,10 @@ def signal_extrema(df, shift_dict):
         ], keys=['max', 'min'], axis=1).sort_index()
 
 
-def style_extrema_stats_df(shift_by, index_slice=pd.IndexSlice[:], **signalkwargs):
+def style_extrema_stats_df(shift_by, index_slice=pd.IndexSlice[:], rename_dict=dict(), **signalkwargs):
     return (pd.concat([signal_extrema(res.recomposed_signal, shift_by) for res in signalkwargs.values()], keys=signalkwargs.keys())
         .loc[index_slice]
+        .rename(**rename_dict)
         .style
         .format(lambda time: format_h_min(time, type="digital"), na_rep="-", subset=pd.IndexSlice[:, pd.IndexSlice[:, "clock time"]])
         .format(lambda time: format_h_min(time, type="duration"), na_rep="-", subset=pd.IndexSlice[:, pd.IndexSlice[:, "hours past waking"]])
@@ -138,120 +139,20 @@ def style_extrema_stats_df(shift_by, index_slice=pd.IndexSlice[:], **signalkwarg
         )
 
 
-# quick workaround to deprecation in diptest lib
-from unidip import dip
-import collections
-
-def dip_fn(dat, is_hist=False, just_dip=False):
-    """
-        Compute the Hartigans' dip statistic either for a histogram of
-        samples (with equidistant bins) or for a set of samples.
-    """
-    if is_hist:
-        histogram = dat
-        idxs = np.arange(len(histogram))
-    else:
-        counts = collections.Counter(dat)
-        idxs = np.sort(list(counts.keys()))
-        histogram = np.array([counts[i] for i in idxs])
-
-    # check for case 1<N<4 or all identical values
-    if len(idxs) <= 4 or idxs[0] == idxs[-1]:
-        left = []
-        right = [1]
-        d = 0.0
-        return d if just_dip else (d, (None, idxs, left, None, right, None))
-
-    cdf = np.cumsum(histogram, dtype=float)
-    cdf /= cdf[-1]
-
-    work_idxs = idxs
-    work_histogram = np.asarray(histogram, dtype=float) / np.sum(histogram)
-    work_cdf = cdf
-
-    D = 0
-    left = [0]
-    right = [1]
-
-    while True:
-        left_part, left_touchpoints = dip._gcm_(work_cdf-work_histogram, work_idxs)
-        right_part, right_touchpoints = dip._lcm_(work_cdf, work_idxs)
-
-        d_left, left_diffs = dip._touch_diffs_(left_part,
-                                           right_part, left_touchpoints)
-        d_right, right_diffs = dip._touch_diffs_(left_part,
-                                             right_part, right_touchpoints)
-
-        if d_right > d_left:
-            xr = right_touchpoints[d_right == right_diffs][-1]
-            xl = left_touchpoints[left_touchpoints <= xr][-1]
-            d = d_right
-        else:
-            xl = left_touchpoints[d_left == left_diffs][0]
-            xr = right_touchpoints[right_touchpoints >= xl][0]
-            d = d_left
-
-        left_diff = np.abs(left_part[:xl+1] - work_cdf[:xl+1]).max()
-        right_diff = np.abs(right_part[xr:]
-                            - work_cdf[xr:]
-                            + work_histogram[xr:]).max()
-
-        if d <= D or xr == 0 or xl == len(work_cdf):
-            the_dip = max(np.abs(cdf[:len(left)] - left).max(),
-                          np.abs(cdf[-len(right)-1:-1] - right).max())
-            if just_dip:
-                return the_dip/2
-            else:
-                return the_dip/2, (cdf, idxs, left, left_part, right, right_part)
-        else:
-            D = max(D, left_diff, right_diff)
-
-        work_cdf = work_cdf[xl:xr+1]
-        work_idxs = work_idxs[xl:xr+1]
-        work_histogram = work_histogram[xl:xr+1]
-
-        left[len(left):] = left_part[1:xl+1]
-        right[:0] = right_part[xr:-1]
-
-def diptst(dat, is_hist=False, numt=1000):
-    """ diptest with pval """
-    # sample dip
-    d, (_, idxs, left, _, right, _) = dip_fn(dat, is_hist)
-
-    # simulate from null uniform
-    unifs = np.random.uniform(size=numt * idxs.shape[0])\
-                     .reshape([numt, idxs.shape[0]])
-    unif_dips = np.apply_along_axis(dip_fn, 1, unifs, is_hist, True)
-
-    # count dips greater or equal to d, add 1/1 to prevent a pvalue of 0
-    pval = None \
-      if unif_dips.sum() == 0 else \
-        (np.less(d, unif_dips).sum() + 1) / (np.float64(numt) + 1)
-
-    return (d, pval, # dip, pvalue
-            (len(left)-1, len(idxs)-len(right)) # indices
-           )
-
-
-def style_dip_df(heightened_activity, order=None, **signalkwargs):
+def style_dip_df(heightened_activity, rename_dict=dict(), order=None, **signalkwargs):
     if order  is None:
         order = heightened_activity.index
-    dip_df = pd.DataFrame(0., index=order, columns=pd.MultiIndex.from_product((tuple(signalkwargs.keys()), ("dip-statistic", "\pvalue"))))
-    for c in order:
-        for k, v in signalkwargs.items():
-            dip_df.loc[c, k] = diptst(v.loc[c])[:2]
-    dip_df[[("heightened activity", "onset"), ("heightened activity", "end")]] = get_increased_activity_with_end(heightened_activity).loc[dip_df.index]
-    return (
-        dip_df
-        .rename(index={c:c.split()[0] for c in dip_df.index})
+    return (pd.concat([
+            *(t.apply(diptest, axis=1, result_type='expand') for t in signalkwargs.values()), 
+            get_increased_activity_with_end(heightened_activity)
+        ], keys=[*signalkwargs.keys(), 'heightened activity'], axis=1)
+        .loc[Clusters.order()]
+        .rename(**rename_dict)
         .style
         .format('{:.3f}' )
-        .format(lambda time: format_h_min(time, type="ampm"), na_rep="-", subset="heightened activity")
+        .format(format_h_min, na_rep="-", subset="heightened activity")
         .map(lambda v: 'font-weight: bold;' if (v <0.05)  else None, subset=pd.IndexSlice[:, pd.IndexSlice[:, "\pvalue"]])
     )
-
-
-
 
 def apply_mwu(df, order=None):
     order=df.index if order is None else order
@@ -263,8 +164,9 @@ def apply_mwu(df, order=None):
         axis=1, result_type='expand').loc[order[:-1], order[1:]]
 
 
-def style_mwu_comparison_df(order=None, **signalkwargs):
+def style_mwu_comparison_df(order=None, rename_dict=dict(), **signalkwargs):
     return (pd.concat([apply_mwu(df=s, order=order) for s in signalkwargs.values()], keys=signalkwargs.keys())
+        .rename(**rename_dict)
         .style
         .format('{:,.1e}', na_rep="-")
         .format('{:,.0f}', na_rep="-", subset=pd.IndexSlice[:, pd.IndexSlice[:, "Statistic"]])
@@ -370,7 +272,7 @@ def plot_recomposition(recomposition_result, increased_activity, index_slice=pd.
     return g
 
 
-def plots_to_store(signal, recomposed_signal, increased_activity, index_slice=pd.IndexSlice[:], normalize=False, hatch=[], **kwargs):
+def plots_to_store(signal, recomposed_signal, increased_activity, index_slice=pd.IndexSlice[:], normalize=False, hatch=[], cumsum=None, **kwargs):
     prepare=lambda df: df / df.iloc[0].mean() if normalize else df
     fig1, _ = plot_signal_and_recombined(
         recomposed_signal.loc[index_slice], 
@@ -432,7 +334,7 @@ class FourierRoutine():
         ):
             fourier_recomposition.figure = plot_recomposition(fourier_recomposition, activity.increased_activity, title=title, **(self.shared_plot_kwargs | kwargs | kw))
             if save_plots:
-                g1, g2 = plots_to_store(fourier_recomposition, activity.increased_activity, **(self.shared_plot_kwargs | kwargs | kw))
+                g1, g2 = plots_to_store(fourier_recomposition.signal, fourier_recomposition.recomposed_signal, activity.increased_activity, **(self.shared_plot_kwargs | kwargs | kw))
                 save_plot(g1, f'{plottype}_by_{label}_fourier_clocktime', self.config, clustertype)
                 save_plot(g2, f'{plottype}_by_{label}_fourier_waking', self.config, clustertype)
         plt.close('all')
