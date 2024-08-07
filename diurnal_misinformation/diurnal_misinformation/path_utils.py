@@ -19,10 +19,13 @@ def save_plot(figure, label, config, type=None, subdir="", transparent=False, ex
 
 def to_path(config, label, dir, ext, type=None, subdir=""):
     label = f'{config.LABEL}_{label}' + (f'_{type}' if type else '') + f'.{ext}'.replace(" ", "_")
-    return os.path.join(config.ROOT_DIR, dir, subdir, label)
+    filename = os.path.join(config.ROOT_DIR, dir, subdir, label)
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    return filename
 
 
-def save_to_latex(config, df_style, label, caption, type=None, is_multi_index=False, subdir="", **kwargs):
+
+def save_to_latex(config, df_style, label, caption, type=None, is_multi_index=False, subdir="", **kwargs): 
     kwargs.update(
         buf=to_path(config, label, config.STATS_DIR, ext='tex', type=type, subdir=subdir),
         position='htb',
