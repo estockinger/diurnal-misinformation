@@ -25,15 +25,13 @@ class CountryConfig:
 
 @dataclass
 class ItalyConfig(CountryConfig, Config):
-    LABEL:str = "ITA"
+    LABEL:str = "IT"
     TIME_ZONE:str = "Europe/Rome"
-    NUTS_COUNTS_CODE:str = "IT"
 
 
 
 @dataclass
 class GermanyConfig(CountryConfig, Config):
-    LABEL:str = "DEU"
+    LABEL:str = "DE"
     TIME_ZONE:str = "Europe/BERLIN"
-    NUTS_COUNTS_CODE:str = "DE"
 

@@ -146,7 +146,7 @@ class ClusterRoutine():
     @property
     def users_over_threshold(self):
         if self._users_over_threshold is None:
-            self._users_over_threshold = self.posts_per_user.processor.loc[self.processor.posts_per_user > self.cutoff_post_nr].index
+            self._users_over_threshold = self.processor.posts_per_user.loc[self.processor.posts_per_user > self.cutoff_post_nr].index
         return self._users_over_threshold
 
     @property
